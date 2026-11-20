@@ -1,0 +1,34 @@
+# @Antigravity, 20261120, [INIT]: 初始化 Git 忽略规则
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Test & coverage
+coverage/
+.vitest/
+
+# Local runtime artifacts
+workspace/
+events.jsonl
+DIARY.md
+CRASH_LATEST.json
+crashes/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# OS metadata
+.DS_Store
+Thumbs.db

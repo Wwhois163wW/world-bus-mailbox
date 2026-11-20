@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgentRuntime, type RuntimeConfig } from "world-bus-agent";
+import { createAgentRuntime, type RuntimeConfig } from "world-bus-agent/dist/main.js";
 import { MemoryStreamStore, createInfoCenter } from "world-bus-information-center";
 import { attachMailboxExtension } from "../src/index.js";
 
@@ -28,7 +28,8 @@ describe("World Bus Mailbox E2E (Agent <-> Information Center <-> Agent)", () =>
     tickIntervalMs: 0,
     llm: {
       enabled: true,
-      baseURL: "http://localhost",
+      provider: "openai-compatible",
+      baseURL: "http://127.0.0.1:11434/v1",
       apiKey: "mock-key",
       model: "mock-model",
       systemPrompt: "Test",
@@ -138,11 +139,17 @@ describe("World Bus Mailbox E2E (Agent <-> Information Center <-> Agent)", () =>
     await dryBox.sendHeartbeatOnce({ stockCount: 0 });
     await ic.runPatrolOnce(Date.now() + 200);
 
-    // Leadership 一次性收取：STAGE_REPORT + NODE_HEARTBEAT + NODE_HEARTBEAT_TIMEOUT
+    // Leadership 一次性收取：NODE_HEARTBEAT_TIMEOUT (wake:true) + STAGE_REPORT (wake:true) + NODE_HEARTBEAT (wake:false)
+    // 因 mock maidExecute 瞬时完成，两条 wake:true 消息各自触发一次实时唤醒；静默心跳则留在 Stock 中不打扰女仆
     expect(await leaderBox.pullInboxOnce()).toBe(3);
-    expect(leaderWakes).toHaveLength(1);
-    expect(leaderWakes[0]).toContain("Dry 已完成谱图入库 (ORD-2026)");
-    expect(leaderWakes[0]).toContain("NODE_HEARTBEAT_TIMEOUT");
+    expect(leaderWakes).toHaveLength(2);
+    const combinedPrompts = leaderWakes.join("\n");
+    expect(combinedPrompts).toContain("NODE_HEARTBEAT_TIMEOUT");
+    expect(combinedPrompts).toContain("Dry 已完成谱图入库 (ORD-2026)");
+
+    const leaderState = leader.getState();
+    expect(leaderState.stock).toHaveLength(1);
+    expect(leaderState.stock[0].type).toBe("NODE_HEARTBEAT");
 
     leaderBox.stop();
     dryBox.stop();
